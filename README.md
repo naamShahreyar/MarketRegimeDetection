@@ -1,12 +1,14 @@
 # Market Regime Detection and Dynamic Portfolio Allocation
 
-A regime-based systematic trading strategy that uses a Hidden Markov Model (HMM) to detect latent market states and dynamically size positions in SPY based on the probability of being in a risk-on regime.
+A regime-based risk overlay that uses a Hidden Markov Model (HMM) to detect latent market states and dynamically reduce SPY exposure during crisis regimes, cutting drawdown at the cost of some upside in strong bull markets.
 
 ---
 
 ## Overview
 
 Financial markets alternate between distinct regimes — periods of calm, trending growth and periods of elevated stress, high volatility, and drawdowns. This project models those regimes in an unsupervised fashion using a Gaussian HMM trained on a multi-asset feature set, then uses the resulting regime probabilities to scale portfolio exposure continuously rather than switching between binary states.
+
+The primary goal is **drawdown reduction**, not return maximisation. The strategy trades some upside in strong bull markets for materially lower peak-to-trough losses — the kind of risk overlay used in practice to make a portfolio more survivable across full market cycles.
 
 The strategy is benchmarked against a passive SPY buy-and-hold from 2005 to the present, with 5 bps per unit of turnover deducted to account for transaction costs.
 
@@ -135,7 +137,16 @@ strategy_return = position.shift(1) * SPY_ret - (0.0005 * position.diff().abs())
 
 ## Backtest Results
 
-Evaluated over the full dataset (2005 to present):
+### Out-of-Sample (Test Set — 30% of data, unseen during training)
+
+| Metric       | Buy and Hold | Regime Strategy |
+|--------------|-------------|-----------------|
+| Sharpe Ratio | 1.16        | 0.77            |
+| Max Drawdown | -24%        | -16%            |
+
+The strategy underperforms on returns during the test period, which covers a strong bull market where reduced exposure costs upside. However, it cuts maximum drawdown by 33% (-16% vs -24%), which is the intended behaviour of a risk overlay.
+
+### Full Period (2005 to present — partially in-sample)
 
 | Metric           | Buy and Hold | Regime Strategy |
 |------------------|-------------|-----------------|
@@ -144,7 +155,7 @@ Evaluated over the full dataset (2005 to present):
 | Max Drawdown     | -55%        | -30%            |
 | Total Return     | 8.04x       | 9.99x           |
 
-The strategy reduces maximum drawdown by roughly half while improving risk-adjusted returns across both Sharpe and Sortino metrics.
+The full-period numbers are favourable because they include the 2008 crisis (in the training window), where cutting exposure had an outsized impact. These figures should not be cited as out-of-sample evidence of outperformance.
 
 ---
 
