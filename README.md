@@ -121,10 +121,21 @@ Mean feature values by regime on the training set:
 
 ## Strategy Logic
 
-Position size is a continuous function of the risk-on probability, allowing for up to 2x leverage:
+Position size scales continuously from 0.5x (full risk-off) to 1.5x (full risk-on) based on the regime probability:
 
 ```python
-position = np.clip(p_risk_on * 2, 0, 2)
+position = 0.5 + p_risk_on * 1.0
+```
+
+The 0.5x floor keeps the strategy partially invested during crisis regimes, capturing recovery rallies rather than going fully flat. The 1.5x ceiling adds modest upside during bull regimes without excessive leverage.
+
+Regime probabilities are computed on the test set only using a rolling 20-day context window, with `predict_proba` called one day at a time — no future test observations are used:
+
+```python
+for i in range(len(X_test)):
+    start = max(0, i - context_window + 1)
+    prob = model.predict_proba(X_test.iloc[start:i+1].values)
+    p_risk_on[i] = prob[-1, risk_on_idx]
 ```
 
 Daily strategy return with transaction costs:
@@ -137,25 +148,18 @@ strategy_return = position.shift(1) * SPY_ret - (0.0005 * position.diff().abs())
 
 ## Backtest Results
 
-### Out-of-Sample (Test Set — 30% of data, unseen during training)
+All results are computed on the **test set only (30% of data, unseen during training)**. The model is trained on the 70% training split and frozen — no test data is used during fitting or probability estimation.
 
-| Metric       | Buy and Hold | Regime Strategy |
-|--------------|-------------|-----------------|
-| Sharpe Ratio | 1.16        | 0.77            |
-| Max Drawdown | -24%        | -16%            |
+| Metric        | Buy and Hold | Regime Strategy |
+|---------------|-------------|-----------------|
+| Sharpe Ratio  | 1.11        | 0.94            |
+| Sortino Ratio | 1.09        | 0.87            |
+| Max Drawdown  | -24%        | -20%            |
+| Total Return  | 2.07x       | 1.09x           |
 
-The strategy underperforms on returns during the test period, which covers a strong bull market where reduced exposure costs upside. However, it cuts maximum drawdown by 33% (-16% vs -24%), which is the intended behaviour of a risk overlay.
+The strategy underperforms on raw returns during the test period, which covers a strong bull market where the 0.5x floor during risk-off regimes limits upside. However, it reduces maximum drawdown by 17% (-20% vs -24%) with no look-ahead bias in the probability estimates.
 
-### Full Period (2005 to present — partially in-sample)
-
-| Metric           | Buy and Hold | Regime Strategy |
-|------------------|-------------|-----------------|
-| Sharpe Ratio     | 0.65        | 0.79            |
-| Sortino Ratio    | 0.61        | 0.80            |
-| Max Drawdown     | -55%        | -30%            |
-| Total Return     | 8.04x       | 9.99x           |
-
-The full-period numbers are favourable because they include the 2008 crisis (in the training window), where cutting exposure had an outsized impact. These figures should not be cited as out-of-sample evidence of outperformance.
+This is a risk overlay, not an alpha generator — the intended use case is drawdown reduction across full market cycles.
 
 ---
 
